@@ -125,7 +125,7 @@
   <!-- Background Canvas -->
   <canvas id="skyCanvas" class="absolute inset-0 w-full h-full z-0 block"></canvas>
 
-  <!-- Distant Silhouette layer (Rooftop nostalgic vibes like the MV) -->
+  <!-- Distant Silhouette layer -->
   <div class="absolute bottom-0 inset-x-0 h-28 sm:h-44 pointer-events-none z-10 opacity-70">
     <svg class="w-full h-full object-cover" preserveAspectRatio="none" viewBox="0 0 1440 280" fill="none">
       <defs>
@@ -225,8 +225,8 @@
       <div class="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
         <i data-lucide="feather" class="w-3.5 h-3.5 text-white"></i>
       </div>
-      <span class="tracking-wide text-xs sm:text-sm font-semibold">寫下未完成的故事</span>
-      <span class="text-[10px] px-2 py-0.5 rounded-md bg-white/20 text-cyan-100 hidden sm:inline-block">摺成紙飛機</span>
+      <span id="openWriterBtnText" class="tracking-wide text-xs sm:text-sm font-semibold">寫下未完成的故事</span>
+      <span id="openWriterSubText" class="text-[10px] px-2 py-0.5 rounded-md bg-white/20 text-cyan-100 hidden sm:inline-block">摺成紙飛機</span>
     </button>
 
     <button id="openGalleryBtn" class="glass-panel hover:bg-slate-800/90 px-3.5 sm:px-4 py-3 sm:py-3.5 rounded-2xl text-slate-200 hover:text-white text-xs sm:text-sm font-medium flex items-center gap-1.5 sm:gap-2 transition-all active:scale-95 shadow-xl sm:hover:-translate-y-0.5">
@@ -272,7 +272,7 @@
           </div>
         </div>
 
-        <!-- Story Category Tags (含 KickFlip 回歸應援專屬標籤) -->
+        <!-- Tags -->
         <div class="mb-3">
           <label class="block text-xs font-semibold text-slate-600 mb-1.5">關於這塊碎片的模樣：</label>
           <div class="flex flex-wrap gap-1.5" id="tagSelector">
@@ -459,7 +459,7 @@
 
   <script>
     /* =========================================================================
-       1. FIREBASE REALTIME DATABASE SYNC SETUP
+       1. FIREBASE REALTIME DATABASE SYNC
        ========================================================================= */
     const firebaseConfig = {
       apiKey: "AIzaSyApRIoy8QbKdthZ3a47svGe6JOiwEbalwY",
@@ -482,7 +482,7 @@
         isFirebaseReady = true;
       }
     } catch(err) {
-      console.warn("Firebase 初始化降級為本機模式:", err);
+      console.warn("Firebase 降級為本機模式:", err);
     }
 
     /* =========================================================================
@@ -627,7 +627,7 @@
         osc.type = 'sine';
         osc.frequency.setValueAtTime(140, this.ctx.currentTime);
         osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.6);
-        gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+        gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.6);
         osc.connect(gain);
         gain.connect(this.ctx.destination);
@@ -638,7 +638,7 @@
     const sound = new CosmicAudio();
 
     /* =========================================================================
-       4. STORIES & CLOUD DATA MANAGEMENT (門檻 20 架)
+       4. STORIES & CLOUD MANAGEMENT (包含盛典期間禁止新增與同步歸零)
        ========================================================================= */
     const SEED_STORIES = [
       {
@@ -664,28 +664,12 @@
         tag: "💖 為 KickFlip 回歸應援",
         color: "peach",
         time: "剛剛"
-      },
-      {
-        id: "seed-4",
-        text: "學吉他學了半年，還是彈不好一首完整的歌。但每次撥動琴弦，那種純粹的心動都在告訴我：過程本身就是答案。",
-        author: "吉他初學者",
-        tag: "笨拙的努力",
-        color: "blue",
-        time: "1小時前"
-      },
-      {
-        id: "seed-5",
-        text: "불완전해서 그려지는 마스터피스. KickFlip의 노래를 들으며 오늘 하루도 버텼어. 완벽하지 않아도 괜찮아.",
-        author: "KickFlip Fan",
-        tag: "💖 為 KickFlip 回歸應援",
-        color: "mint",
-        time: "3小時前"
       }
     ];
 
     let stories = [];
     let pieceCount = 0;
-    const MAX_PIECES = 20; // 門檻設定為 20 架
+    const MAX_PIECES = 20;
     let selectedColor = 'yellow';
     let selectedTag = '未完的夢想';
     let isClimaxActive = false;
@@ -703,11 +687,16 @@
         return;
       }
 
-      // 監聽雲端碎片計數
+      // 監聽雲端計數器
       rtdb.ref('puzzle_universe/pieceCount').on('value', (snapshot) => {
         const val = snapshot.val();
-        pieceCount = (val !== null) ? val : 0;
+        pieceCount = (val !== null && typeof val === 'number') ? val : 0;
         updateCounterUI();
+
+        // 如果計數器在別台裝置被重置歸零，在線所有人的盛典自動退出並重啟星空
+        if (pieceCount === 0 && isClimaxActive) {
+          exitClimaxMode();
+        }
       });
 
       // 監聽故事列表
@@ -721,7 +710,7 @@
         initSkyPlanes();
       });
 
-      // 監聽即時新放飛的紙飛機 (跨裝置同步劃過星空)
+      // 監聽即時放飛紙飛機
       rtdb.ref('puzzle_universe/latestFlight').on('value', (snapshot) => {
         const flight = snapshot.val();
         if (flight && Date.now() - flight.timestamp < 6000) {
@@ -732,8 +721,8 @@
 
     function initLocalStories() {
       try {
-        const stored = localStorage.getItem('kickflip_puzzle_stories_v4');
-        const storedCount = localStorage.getItem('kickflip_puzzle_count_v4');
+        const stored = localStorage.getItem('kickflip_puzzle_stories_v5');
+        const storedCount = localStorage.getItem('kickflip_puzzle_count_v5');
         stories = stored ? JSON.parse(stored) : [...SEED_STORIES];
         pieceCount = storedCount ? parseInt(storedCount, 10) : stories.length;
       } catch (e) {
@@ -745,26 +734,30 @@
     }
 
     function saveStoryToCloud(newStory) {
+      if (isClimaxActive) {
+        showToast('目前正在盛大煙火慶典中，請稍候片刻再放飛 ✨');
+        return;
+      }
+
       if (isFirebaseReady) {
         const newRef = rtdb.ref('puzzle_universe/stories').push();
         newRef.set(newStory);
         
-        // 計數器 +1
         rtdb.ref('puzzle_universe/pieceCount').transaction((current) => {
-          return (current || 0) + 1;
+          const next = (current || 0) + 1;
+          return next > MAX_PIECES ? MAX_PIECES : next;
         });
 
-        // 廣播給其他在線用戶同步飛機
         rtdb.ref('puzzle_universe/latestFlight').set({
           story: newStory,
           timestamp: Date.now()
         });
       } else {
         stories.unshift(newStory);
-        pieceCount++;
+        pieceCount = Math.min(MAX_PIECES, pieceCount + 1);
         try {
-          localStorage.setItem('kickflip_puzzle_stories_v4', JSON.stringify(stories));
-          localStorage.setItem('kickflip_puzzle_count_v4', pieceCount.toString());
+          localStorage.setItem('kickflip_puzzle_stories_v5', JSON.stringify(stories));
+          localStorage.setItem('kickflip_puzzle_count_v5', pieceCount.toString());
         } catch(e){}
         updateCounterUI();
       }
@@ -772,13 +765,15 @@
 
     function resetSkyCloud() {
       if (isFirebaseReady) {
+        // 全球雲端歸零，所有在線裝置同步收到 0
         rtdb.ref('puzzle_universe/pieceCount').set(0);
       } else {
         pieceCount = 0;
         try {
-          localStorage.setItem('kickflip_puzzle_count_v4', '0');
+          localStorage.setItem('kickflip_puzzle_count_v5', '0');
         } catch(e){}
         updateCounterUI();
+        exitClimaxMode();
       }
     }
 
@@ -794,8 +789,31 @@
       }
     }
 
+    /* 盛典期間控制：鎖定寫故事按鈕 */
+    function setWriterButtonState(isLocked) {
+      const openWriterBtn = document.getElementById('openWriterBtn');
+      const openWriterBtnText = document.getElementById('openWriterBtnText');
+      const openWriterSubText = document.getElementById('openWriterSubText');
+      const quickAddBtn = document.getElementById('quickAddBtn');
+
+      if (isLocked) {
+        openWriterBtn.classList.add('opacity-60', 'cursor-not-allowed', 'pointer-events-none');
+        openWriterBtn.classList.remove('active:scale-95');
+        openWriterBtnText.textContent = '🎇 正在仰望煙火盛典中...';
+        if (openWriterSubText) openWriterSubText.classList.add('hidden');
+        quickAddBtn.classList.add('opacity-40', 'pointer-events-none');
+        closeModal(document.getElementById('writerModal'));
+      } else {
+        openWriterBtn.classList.remove('opacity-60', 'cursor-not-allowed', 'pointer-events-none');
+        openWriterBtn.classList.add('active:scale-95');
+        openWriterBtnText.textContent = '寫下未完成的故事';
+        if (openWriterSubText) openWriterSubText.classList.remove('hidden');
+        quickAddBtn.classList.remove('opacity-40', 'pointer-events-none');
+      }
+    }
+
     /* =========================================================================
-       5. CANVAS RENDERING (手機版專屬慢速花火物理阻尼)
+       5. CANVAS RENDERING (手機極致慢動作唯美花火物理系統)
        ========================================================================= */
     const canvas = document.getElementById('skyCanvas');
     const ctx = canvas.getContext('2d');
@@ -841,12 +859,12 @@
         const isMobile = width < 768;
         this.x = Math.random() * (width * 1.3) - (width * 0.15);
         this.y = Math.random() * (height * 0.4) - 60;
-        this.length = Math.random() * (this.isClimax ? 120 : 80) + 50;
-        // 手機上適度降低流星速度
-        this.speed = (Math.random() * (this.isClimax ? 16 : 10) + 10) * (isMobile ? 0.75 : 1);
+        this.length = Math.random() * (this.isClimax ? 120 : 80) + 40;
+        // 手機版流星速度再放緩
+        this.speed = (Math.random() * (this.isClimax ? 14 : 9) + 8) * (isMobile ? 0.6 : 1);
         this.angle = (Math.PI / 4) + (Math.random() * 0.18 - 0.09);
         this.alpha = 1;
-        this.decay = Math.random() * 0.015 + 0.010;
+        this.decay = Math.random() * 0.012 + 0.008;
         this.colors = ['255, 235, 180', '180, 230, 255', '255, 190, 230'];
         this.color = this.colors[Math.floor(Math.random() * this.colors.length)];
       }
@@ -865,14 +883,14 @@
         grad.addColorStop(1, `rgba(${this.color}, 0)`);
 
         ctx.strokeStyle = grad;
-        ctx.lineWidth = this.isClimax ? 2.8 : 1.8;
+        ctx.lineWidth = this.isClimax ? 2.5 : 1.6;
         ctx.beginPath();
         ctx.moveTo(this.x, this.y);
         ctx.lineTo(tailX, tailY);
         ctx.stroke();
 
         ctx.beginPath();
-        ctx.arc(this.x, this.y, 2, 0, Math.PI * 2);
+        ctx.arc(this.x, this.y, 1.8, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(255, 255, 255, ${this.alpha})`;
         ctx.fill();
       }
@@ -960,7 +978,7 @@
       }
     }
 
-    /* 手機版慢速浪漫煙火粒子 (重力 0.024、阻尼 0.978) */
+    /* 手機端大幅降速：初速 0.36、重力 0.010、空氣阻力 0.988、超長漂浮時間 */
     class FireworkParticle {
       constructor(x, y, color, angle, speed, isWillow = false) {
         const isMobile = width < 768;
@@ -968,17 +986,18 @@
         this.y = y;
         this.color = color;
         
-        // 手機端初速乘數 0.65
-        const adjustedSpeed = isMobile ? speed * 0.65 : speed;
+        // 手機端初速乘數下修為 0.36，花火從容漫舞
+        const adjustedSpeed = isMobile ? speed * 0.36 : speed;
         this.vx = Math.cos(angle) * adjustedSpeed;
         this.vy = Math.sin(angle) * adjustedSpeed;
         
-        // 手機端空氣阻力 0.978，重力 0.024
-        this.friction = isMobile ? 0.978 : 0.96;
-        this.gravity = isMobile ? (isWillow ? 0.035 : 0.024) : (isWillow ? 0.06 : 0.04);
+        // 空氣阻尼 0.988，重力 0.010，營造慢速下墜浮游感
+        this.friction = isMobile ? 0.988 : 0.96;
+        this.gravity = isMobile ? (isWillow ? 0.016 : 0.010) : (isWillow ? 0.06 : 0.04);
         
         this.alpha = 1;
-        this.decay = Math.random() * (isMobile ? 0.010 : 0.015) + (isWillow ? 0.006 : 0.010);
+        // 衰減率減半，粒子在手機上停留更持久
+        this.decay = Math.random() * (isMobile ? 0.006 : 0.014) + (isWillow ? 0.004 : 0.008);
         this.size = Math.random() * 2.2 + 1.2;
       }
       update() {
@@ -1009,7 +1028,8 @@
         this.x = Math.random() * (width * 0.8) + (width * 0.1);
         this.y = height + 10;
         this.targetY = Math.random() * (height * 0.45) + (height * 0.1);
-        this.speed = (Math.random() * 3 + 10) * (isMobile ? 0.85 : 1);
+        // 手機端發射火箭速度適度降速
+        this.speed = (Math.random() * 3 + 9) * (isMobile ? 0.7 : 1);
         this.angle = -Math.PI / 2 + (Math.random() * 0.2 - 0.1);
         this.vx = Math.cos(this.angle) * this.speed;
         this.vy = Math.sin(this.angle) * this.speed;
@@ -1022,7 +1042,7 @@
       update() {
         this.x += this.vx;
         this.y += this.vy;
-        this.vy += 0.07;
+        this.vy += 0.06;
 
         if (this.vy >= -1 || this.y <= this.targetY) {
           this.explode();
@@ -1040,12 +1060,12 @@
       explode() {
         this.exploded = true;
         sound.playFireworkBoom();
-        const particleCount = Math.floor(Math.random() * 30 + 50);
+        const particleCount = Math.floor(Math.random() * 25 + 45);
         const isWillow = Math.random() > 0.4;
 
         for (let i = 0; i < particleCount; i++) {
           const angle = Math.random() * Math.PI * 2;
-          const speed = Math.random() * 5.5 + 1.2;
+          const speed = Math.random() * 5.0 + 1.2;
           fireworkParticles.push(new FireworkParticle(this.x, this.y, this.color, angle, speed, isWillow));
         }
       }
@@ -1101,7 +1121,7 @@
         s.draw();
       }
 
-      if (Math.random() < (isClimaxActive ? 0.35 : 0.02) && meteors.length < (isClimaxActive ? 16 : 3)) {
+      if (Math.random() < (isClimaxActive ? 0.32 : 0.02) && meteors.length < (isClimaxActive ? 15 : 3)) {
         meteors.push(new Meteor(isClimaxActive));
       }
       for (let i = meteors.length - 1; i >= 0; i--) {
@@ -1110,7 +1130,7 @@
         if (meteors[i].alpha <= 0) meteors.splice(i, 1);
       }
 
-      if (isClimaxActive && Math.random() < 0.12 && fireworkRockets.length < 5) {
+      if (isClimaxActive && Math.random() < 0.10 && fireworkRockets.length < 5) {
         fireworkRockets.push(new FireworkRocket());
       }
 
@@ -1139,7 +1159,7 @@
     }
 
     /* =========================================================================
-       6. MODALS & UI INTERACTION CONTROLS
+       6. UI CONTROLS & INTERACTION
        ========================================================================= */
     const writerModal = document.getElementById('writerModal');
     const paperWrapper = document.getElementById('paperWrapper');
@@ -1249,6 +1269,7 @@
     });
 
     openWriterBtn.addEventListener('click', () => {
+      if (isClimaxActive) return;
       sound.playSparkle();
       openModal(writerModal);
       paperWrapper.classList.remove('folding');
@@ -1259,6 +1280,10 @@
     cancelWriteBtn.addEventListener('click', () => closeModal(writerModal));
 
     launchAirplaneBtn.addEventListener('click', () => {
+      if (isClimaxActive) {
+        showToast('目前正在盛大煙火慶典中，請稍候片刻再放飛 ✨');
+        return;
+      }
       const text = storyInput.value.trim();
       if (!text) {
         showToast('請先寫下一點關於未完成的故事或應援吧 ✨');
@@ -1394,16 +1419,17 @@
     confirmConceptBtn.addEventListener('click', () => closeModal(conceptModal));
 
     /* =========================================================================
-       7. 20 PIECES CELEBRATION (Grand Meteor Storm + Fireworks Show)
+       7. 20 PIECES CELEBRATION (盛典鎖定、倒數與即時同步歸零)
        ========================================================================= */
     function triggerGrandClimax() {
       isClimaxActive = true;
+      setWriterButtonState(true); // 盛典中鎖定寫故事按鈕
       openModal(meteorOverlay);
 
       for (let i = 0; i < 4; i++) {
         setTimeout(() => {
           fireworkRockets.push(new FireworkRocket());
-        }, i * 350);
+        }, i * 400);
       }
 
       let remaining = 15;
@@ -1415,17 +1441,17 @@
         resetCountdownEl.textContent = remaining;
         if (remaining <= 0) {
           clearInterval(resetTimerInterval);
-          resetToNewSky();
+          resetSkyCloud();
         }
       }, 1000);
     }
 
-    function resetToNewSky() {
+    function exitClimaxMode() {
       clearInterval(resetTimerInterval);
       closeModal(meteorOverlay);
       isClimaxActive = false;
-      resetSkyCloud();
-      showToast('星空已重置，開啟新的 20 塊碎片收集篇章 ✨');
+      setWriterButtonState(false); // 恢復按鈕可點擊
+      showToast('星空已重置，開啟新一輪 20 塊碎片收集篇章 ✨');
     }
 
     closeMeteorBtn.addEventListener('click', () => {
@@ -1434,15 +1460,17 @@
     });
 
     resetNowBtn.addEventListener('click', () => {
-      resetToNewSky();
+      resetSkyCloud();
     });
 
     // Quick Add (+5) Demo button
     quickAddBtn.addEventListener('click', () => {
+      if (isClimaxActive) return;
       sound.playLaunch();
       if (isFirebaseReady) {
         rtdb.ref('puzzle_universe/pieceCount').transaction((current) => {
-          return (current || 0) + 5;
+          const next = (current || 0) + 5;
+          return next > MAX_PIECES ? MAX_PIECES : next;
         });
       } else {
         pieceCount = Math.min(MAX_PIECES, pieceCount + 5);
