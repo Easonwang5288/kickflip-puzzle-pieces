@@ -181,9 +181,9 @@
       </div>
     </div>
 
-    <!-- Second Row: 20 Pieces Progress Bar & +5 Test Button -->
+    <!-- Second Row: 20 Pieces Progress Bar (乾淨正式版) -->
     <div class="flex items-center justify-between w-full pointer-events-auto max-w-xl mx-auto sm:mx-0">
-      <div class="glass-panel px-3 py-1.5 sm:py-2 rounded-2xl flex items-center justify-between w-full sm:w-auto gap-3 sm:gap-4 border border-white/15">
+      <div class="glass-panel px-3.5 py-2 sm:py-2.5 rounded-2xl flex items-center justify-between w-full sm:w-auto gap-3 sm:gap-4 border border-white/15">
         <div class="flex items-center gap-2">
           <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-300 animate-spin" style="animation-duration: 4s;"></i>
           <div class="flex flex-col">
@@ -199,14 +199,9 @@
         </div>
 
         <!-- Progress pill -->
-        <div class="flex-1 sm:w-36 h-2 sm:h-2.5 bg-slate-900/90 rounded-full overflow-hidden p-0.5 border border-white/15">
+        <div class="flex-1 sm:w-44 h-2 sm:h-2.5 bg-slate-900/90 rounded-full overflow-hidden p-0.5 border border-white/15">
           <div id="counterProgressBar" class="h-full bg-gradient-to-r from-cyan-400 via-sky-400 to-indigo-400 rounded-full transition-all duration-700 ease-out" style="width: 0%;"></div>
         </div>
-
-        <!-- Demo +5 quick add -->
-        <button id="quickAddBtn" title="快速增加 5 個碎片以測試盛典" class="glass-button text-[10px] sm:text-xs px-2.5 py-1 rounded-xl text-amber-300 font-semibold flex items-center gap-1 active:scale-95 flex-shrink-0">
-          <span>⚡ +5 測試</span>
-        </button>
       </div>
     </div>
 
@@ -404,7 +399,7 @@
     </div>
   </div>
 
-  <!-- Grand Fireworks & Meteor Celebration Overlay (20 Pieces Achieved) -->
+  <!-- Grand Fireworks & Meteor Celebration Overlay (強制沉浸 15 秒仰望欣賞) -->
   <div id="meteorOverlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center p-5 bg-slate-950/80 backdrop-blur-md opacity-0 pointer-events-none transition-opacity duration-1000">
     <div class="w-14 h-14 sm:w-20 sm:h-20 rounded-3xl bg-gradient-to-tr from-amber-400 via-rose-500 to-indigo-500 flex items-center justify-center text-white shadow-2xl mb-3 animate-bounce">
       <i data-lucide="sparkles" class="w-7 h-7 sm:w-10 sm:h-10"></i>
@@ -426,12 +421,11 @@
       </p>
     </div>
 
+    <!-- 倒數指示與全螢幕仰望按鈕 -->
     <div class="flex flex-col sm:flex-row items-center gap-2.5">
-      <button id="closeMeteorBtn" class="px-5 py-2.5 sm:px-6 sm:py-3 rounded-2xl bg-gradient-to-r from-cyan-400 via-sky-400 to-indigo-500 text-slate-950 font-bold text-xs sm:text-sm tracking-wide shadow-xl active:scale-95 transition-all">
-        繼續仰望煙火 (<span id="resetCountdown">15</span>s 後重啟)
-      </button>
-      <button id="resetNowBtn" class="glass-button px-4 py-2 rounded-2xl text-xs text-slate-300 hover:text-white">
-        立即重啟新星空
+      <button id="closeMeteorBtn" class="px-6 py-2.5 sm:px-7 sm:py-3 rounded-2xl bg-gradient-to-r from-cyan-400 via-sky-400 to-indigo-500 text-slate-950 font-bold text-xs sm:text-sm tracking-wide shadow-xl active:scale-95 transition-all flex items-center gap-2">
+        <i data-lucide="sparkles" class="w-4 h-4"></i>
+        <span>靜心仰望煙火 (<span id="resetCountdown">15</span>s 後重啟新星空)</span>
       </button>
     </div>
   </div>
@@ -638,7 +632,7 @@
     const sound = new CosmicAudio();
 
     /* =========================================================================
-       4. STORIES & CLOUD MANAGEMENT (包含盛典期間禁止新增與同步歸零)
+       4. STORIES & CLOUD MANAGEMENT
        ========================================================================= */
     const SEED_STORIES = [
       {
@@ -693,7 +687,7 @@
         pieceCount = (val !== null && typeof val === 'number') ? val : 0;
         updateCounterUI();
 
-        // 如果計數器在別台裝置被重置歸零，在線所有人的盛典自動退出並重啟星空
+        // 如果計數器歸零，全體同步重啟新星空
         if (pieceCount === 0 && isClimaxActive) {
           exitClimaxMode();
         }
@@ -721,8 +715,8 @@
 
     function initLocalStories() {
       try {
-        const stored = localStorage.getItem('kickflip_puzzle_stories_v5');
-        const storedCount = localStorage.getItem('kickflip_puzzle_count_v5');
+        const stored = localStorage.getItem('kickflip_puzzle_stories_v6');
+        const storedCount = localStorage.getItem('kickflip_puzzle_count_v6');
         stories = stored ? JSON.parse(stored) : [...SEED_STORIES];
         pieceCount = storedCount ? parseInt(storedCount, 10) : stories.length;
       } catch (e) {
@@ -756,8 +750,8 @@
         stories.unshift(newStory);
         pieceCount = Math.min(MAX_PIECES, pieceCount + 1);
         try {
-          localStorage.setItem('kickflip_puzzle_stories_v5', JSON.stringify(stories));
-          localStorage.setItem('kickflip_puzzle_count_v5', pieceCount.toString());
+          localStorage.setItem('kickflip_puzzle_stories_v6', JSON.stringify(stories));
+          localStorage.setItem('kickflip_puzzle_count_v6', pieceCount.toString());
         } catch(e){}
         updateCounterUI();
       }
@@ -765,12 +759,11 @@
 
     function resetSkyCloud() {
       if (isFirebaseReady) {
-        // 全球雲端歸零，所有在線裝置同步收到 0
         rtdb.ref('puzzle_universe/pieceCount').set(0);
       } else {
         pieceCount = 0;
         try {
-          localStorage.setItem('kickflip_puzzle_count_v5', '0');
+          localStorage.setItem('kickflip_puzzle_count_v6', '0');
         } catch(e){}
         updateCounterUI();
         exitClimaxMode();
@@ -789,31 +782,27 @@
       }
     }
 
-    /* 盛典期間控制：鎖定寫故事按鈕 */
     function setWriterButtonState(isLocked) {
       const openWriterBtn = document.getElementById('openWriterBtn');
       const openWriterBtnText = document.getElementById('openWriterBtnText');
       const openWriterSubText = document.getElementById('openWriterSubText');
-      const quickAddBtn = document.getElementById('quickAddBtn');
 
       if (isLocked) {
         openWriterBtn.classList.add('opacity-60', 'cursor-not-allowed', 'pointer-events-none');
         openWriterBtn.classList.remove('active:scale-95');
         openWriterBtnText.textContent = '🎇 正在仰望煙火盛典中...';
         if (openWriterSubText) openWriterSubText.classList.add('hidden');
-        quickAddBtn.classList.add('opacity-40', 'pointer-events-none');
         closeModal(document.getElementById('writerModal'));
       } else {
         openWriterBtn.classList.remove('opacity-60', 'cursor-not-allowed', 'pointer-events-none');
         openWriterBtn.classList.add('active:scale-95');
         openWriterBtnText.textContent = '寫下未完成的故事';
         if (openWriterSubText) openWriterSubText.classList.remove('hidden');
-        quickAddBtn.classList.remove('opacity-40', 'pointer-events-none');
       }
     }
 
     /* =========================================================================
-       5. CANVAS RENDERING (手機極致慢動作唯美花火物理系統)
+       5. CANVAS RENDERING (手機極致慢動作花火)
        ========================================================================= */
     const canvas = document.getElementById('skyCanvas');
     const ctx = canvas.getContext('2d');
@@ -860,7 +849,6 @@
         this.x = Math.random() * (width * 1.3) - (width * 0.15);
         this.y = Math.random() * (height * 0.4) - 60;
         this.length = Math.random() * (this.isClimax ? 120 : 80) + 40;
-        // 手機版流星速度再放緩
         this.speed = (Math.random() * (this.isClimax ? 14 : 9) + 8) * (isMobile ? 0.6 : 1);
         this.angle = (Math.PI / 4) + (Math.random() * 0.18 - 0.09);
         this.alpha = 1;
@@ -978,7 +966,6 @@
       }
     }
 
-    /* 手機端大幅降速：初速 0.36、重力 0.010、空氣阻力 0.988、超長漂浮時間 */
     class FireworkParticle {
       constructor(x, y, color, angle, speed, isWillow = false) {
         const isMobile = width < 768;
@@ -986,17 +973,14 @@
         this.y = y;
         this.color = color;
         
-        // 手機端初速乘數下修為 0.36，花火從容漫舞
         const adjustedSpeed = isMobile ? speed * 0.36 : speed;
         this.vx = Math.cos(angle) * adjustedSpeed;
         this.vy = Math.sin(angle) * adjustedSpeed;
         
-        // 空氣阻尼 0.988，重力 0.010，營造慢速下墜浮游感
         this.friction = isMobile ? 0.988 : 0.96;
         this.gravity = isMobile ? (isWillow ? 0.016 : 0.010) : (isWillow ? 0.06 : 0.04);
         
         this.alpha = 1;
-        // 衰減率減半，粒子在手機上停留更持久
         this.decay = Math.random() * (isMobile ? 0.006 : 0.014) + (isWillow ? 0.004 : 0.008);
         this.size = Math.random() * 2.2 + 1.2;
       }
@@ -1028,7 +1012,6 @@
         this.x = Math.random() * (width * 0.8) + (width * 0.1);
         this.y = height + 10;
         this.targetY = Math.random() * (height * 0.45) + (height * 0.1);
-        // 手機端發射火箭速度適度降速
         this.speed = (Math.random() * 3 + 9) * (isMobile ? 0.7 : 1);
         this.angle = -Math.PI / 2 + (Math.random() * 0.2 - 0.1);
         this.vx = Math.cos(this.angle) * this.speed;
@@ -1171,7 +1154,6 @@
     const authorInput = document.getElementById('authorInput');
     const charCount = document.getElementById('charCount');
     const storyPromptHint = document.getElementById('storyPromptHint');
-    const quickAddBtn = document.getElementById('quickAddBtn');
 
     const readerModal = document.getElementById('readerModal');
     const closeReaderBtn = document.getElementById('closeReaderBtn');
@@ -1193,7 +1175,6 @@
 
     const meteorOverlay = document.getElementById('meteorOverlay');
     const closeMeteorBtn = document.getElementById('closeMeteorBtn');
-    const resetNowBtn = document.getElementById('resetNowBtn');
     const resetCountdownEl = document.getElementById('resetCountdown');
 
     const ytPlayToggleBtn = document.getElementById('ytPlayToggleBtn');
@@ -1419,11 +1400,11 @@
     confirmConceptBtn.addEventListener('click', () => closeModal(conceptModal));
 
     /* =========================================================================
-       7. 20 PIECES CELEBRATION (盛典鎖定、倒數與即時同步歸零)
+       7. 20 PIECES CELEBRATION (強制 15 秒仰望欣賞，自然平滑重置)
        ========================================================================= */
     function triggerGrandClimax() {
       isClimaxActive = true;
-      setWriterButtonState(true); // 盛典中鎖定寫故事按鈕
+      setWriterButtonState(true);
       openModal(meteorOverlay);
 
       for (let i = 0; i < 4; i++) {
@@ -1450,42 +1431,13 @@
       clearInterval(resetTimerInterval);
       closeModal(meteorOverlay);
       isClimaxActive = false;
-      setWriterButtonState(false); // 恢復按鈕可點擊
+      setWriterButtonState(false);
       showToast('星空已重置，開啟新一輪 20 塊碎片收集篇章 ✨');
     }
 
     closeMeteorBtn.addEventListener('click', () => {
       closeModal(meteorOverlay);
       showToast('漫天煙火與流星雨持續綻放中⋯');
-    });
-
-    resetNowBtn.addEventListener('click', () => {
-      resetSkyCloud();
-    });
-
-    // Quick Add (+5) Demo button
-    quickAddBtn.addEventListener('click', () => {
-      if (isClimaxActive) return;
-      sound.playLaunch();
-      if (isFirebaseReady) {
-        rtdb.ref('puzzle_universe/pieceCount').transaction((current) => {
-          const next = (current || 0) + 5;
-          return next > MAX_PIECES ? MAX_PIECES : next;
-        });
-      } else {
-        pieceCount = Math.min(MAX_PIECES, pieceCount + 5);
-        updateCounterUI();
-      }
-
-      launchPlaneIntoSky({
-        text: "奔向未來路上的每一步，都是屬於未來的拼圖。",
-        author: "星夜同行者",
-        tag: "💖 為 KickFlip 回歸應援",
-        color: "peach",
-        time: "剛剛"
-      });
-
-      showToast(`已添入碎片！目前累積：${pieceCount} / 20`);
     });
 
     // Music Bar Controls
